@@ -16,6 +16,8 @@ use stdClass;
 class User_model extends CI_Emerald_Model {
     const CLASS_TABLE = 'user';
 
+    const USER_ERROR_NOT_ENOUGH_LIKES_BALANCE = 'not_enough_likes_balance';
+    const USER_ERROR_NOT_ENOUGH_BALANCE = 'not_enough_balance';
 
     /** @var string */
     protected $email;
@@ -35,6 +37,8 @@ class User_model extends CI_Emerald_Model {
     protected $wallet_total_refilled;
     /** @var float */
     protected $wallet_total_withdrawn;
+    /** @var int */
+    protected $wallet_likes_balance;
     /** @var string */
     protected $time_created;
     /** @var string */
@@ -195,6 +199,107 @@ class User_model extends CI_Emerald_Model {
         return $this->save('wallet_total_withdrawn', $wallet_total_withdrawn);
     }
 
+    /** @return int */
+    public function get_wallet_likes_balance(): int
+    {
+        return $this->wallet_likes_balance;
+    }
+    /**
+     * @param int $likes_count
+     * @return bool
+     */
+    public function set_wallet_likes_balance(int $likes_count): bool
+    {
+        $this->wallet_likes_balance = $likes_count;
+        return $this->save('wallet_likes_balance', $likes_count);
+    }
+
+    /**
+     * @param int $amount
+     * @return $this
+     * @throws \Exception
+     */
+    private function change_likes_balance(int $amount)
+    {
+        $this->reload(true);
+        $this->set_wallet_likes_balance($this->get_wallet_likes_balance() + $amount);
+
+        return $this;
+    }
+
+    /**
+     * @param $amount
+     * @return User_model
+     * @throws \Exception
+     */
+    public function balance_likes_refill($amount)
+    {
+        if ($amount <= 0) throw new \Exception(self::USER_ERROR_NOT_ENOUGH_LIKES_BALANCE);
+
+        return $this->change_likes_balance($amount);
+    }
+
+    /**
+     * @param int $amount
+     * @return User_model
+     * @throws \Exception
+     */
+    public function balance_likes_withdraw(int $amount)
+    {
+        if ($this->get_wallet_likes_balance() < $amount || $amount <= 0) throw new \Exception(self::USER_ERROR_NOT_ENOUGH_LIKES_BALANCE);
+
+        return $this->change_likes_balance($amount * -1);
+    }
+
+    /**
+     * @param float $amount
+     * @return $this
+     * @throws \Exception
+     */
+    public function balance_refill(float $amount)
+    {
+        //Обновляем пользователя и лочим для обновления полей
+        $this->reload(true);
+        //Изменяем баланс
+        $this->set_wallet_balance($this->get_wallet_balance() + $amount);
+        $this->set_wallet_total_refilled($this->get_wallet_total_refilled() + $amount);
+
+        return $this;
+    }
+
+    /**
+     * @param float $amount
+     * @return $this
+     * @throws \Exception
+     */
+    public function balance_withdraw(float $amount)
+    {
+        if ($this->get_wallet_balance() < $amount) {
+            throw new \Exception(self::USER_ERROR_NOT_ENOUGH_BALANCE);
+        }
+        //Обновляем пользователя и лочим для обновления полей
+        $this->reload(true);
+
+        //Изменяем баланс
+        $this->set_wallet_balance($this->get_wallet_balance() - $amount);
+        $this->set_wallet_total_withdrawn($this->get_wallet_total_withdrawn() + $amount);
+
+        return $this;
+    }
+
+    /**
+     * @param Boosterpack_model $boosterpack
+     * @return int
+     * @throws \Exception
+     */
+    public function openBoosterPack(Boosterpack_model $boosterpack): int
+    {
+        $likes = $boosterpack->open();
+        $this->balance_likes_refill($likes);
+
+        return $likes;
+    }
+
     /**
      * @return string
      */
@@ -316,6 +421,18 @@ class User_model extends CI_Emerald_Model {
         }
     }
 
+    /**
+     * Возвращает пользователя по email, либо пустой объект
+     *
+     * @param string $email
+     * @return User_model
+     */
+    public static function get_user_by_email(string $email): User_model
+    {
+        $data = App::get_ci()->s->from(self::CLASS_TABLE)->where('email', $email)->one();
+        $user = new self();
+        return $data ? $user->set($data) : $user;
+    }
 
 
     /**

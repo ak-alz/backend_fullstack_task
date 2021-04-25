@@ -3,6 +3,7 @@
 namespace Model;
 use App;
 use CI_Emerald_Model;
+use mysql_xdevapi\Exception;
 
 /**
  * Created by PhpStorm.
@@ -12,7 +13,7 @@ use CI_Emerald_Model;
  */
 class Boosterpack_model extends CI_Emerald_Model {
     const CLASS_TABLE = 'boosterpack';
-
+    const BOOSTERPACK_ERROR_WRONG_ID = "wrong_boosterpack_id";
 
     /** @var float Цена бустерпака */
     protected $price;
@@ -127,4 +128,16 @@ class Boosterpack_model extends CI_Emerald_Model {
         return (App::get_ci()->s->get_affected_rows() > 0);
     }
 
+    /**
+     * @return int
+     */
+    public function open(): int
+    {
+        $this->reload(true);
+        $likes = rand(1, ($this->get_price() + $this->get_bank()));
+        $diff = $this->get_price() - $likes;
+        $this->set_bank($this->get_bank() + $diff);
+
+        return $likes;
+    }
 }

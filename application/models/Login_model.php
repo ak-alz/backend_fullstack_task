@@ -2,15 +2,30 @@
 
 namespace Model;
 use App;
-use CI_Model;
-use CriticalException;
+use CI_Emerald_Model;
 
-class Login_model extends CI_Model {
+class Login_model extends CI_Emerald_Model {
 
-    public function __construct()
+    /**
+     * Авторизуем пользователя
+     *
+     * @param string $email
+     * @param string $password
+     * @return bool
+     */
+    public static function login(string $email, string $password): bool
     {
-        parent::__construct();
+        $user = User_model::get_user_by_email($email);
 
+        if (!$user->is_loaded() || $user->get_password() !== $password) return false;
+
+        try {
+            self::start_session($user);
+        } catch (\Exception $e) {
+            return false;
+        }
+
+        return true;
     }
 
     public static function logout()
@@ -18,6 +33,10 @@ class Login_model extends CI_Model {
         App::get_ci()->session->unset_userdata('id');
     }
 
+    /**
+     * @param User_model $user
+     * @throws \Exception
+     */
     public static function start_session(User_model $user)
     {
         // если перенедан пользователь
@@ -25,6 +44,4 @@ class Login_model extends CI_Model {
 
         App::get_ci()->session->set_userdata('id', $user->get_id());
     }
-
-
 }

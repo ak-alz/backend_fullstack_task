@@ -1,4 +1,9 @@
 <?php
+namespace Model;
+
+use App;
+use CI_Emerald_Model;
+use Library\Comment_library;
 
 /**
  * Created by PhpStorm.
@@ -14,7 +19,12 @@ class Comment_model extends CI_Emerald_Model
     /** @var int */
     protected $user_id;
     /** @var int */
-    protected $assing_id;
+    protected $post_id;
+    /** @var int */
+    protected $parent_id;
+    /** @var int */
+    protected $replies;
+
     /** @var string */
     protected $text;
 
@@ -51,9 +61,9 @@ class Comment_model extends CI_Emerald_Model
     /**
      * @return int
      */
-    public function get_assing_id(): int
+    public function get_post_id(): int
     {
-        return $this->assing_id;
+        return $this->post_id;
     }
 
     /**
@@ -61,12 +71,48 @@ class Comment_model extends CI_Emerald_Model
      *
      * @return bool
      */
-    public function set_assing_id(int $assing_id)
+    public function set_post_id(int $post_id)
     {
-        $this->assing_id = $assing_id;
-        return $this->save('assing_id', $assing_id);
+        $this->post_id = $post_id;
+        return $this->save('post_id', $post_id);
     }
 
+    /**
+     * @return int|null
+     */
+    public function get_parent_id(): ?int
+    {
+        return $this->parent_id;
+    }
+
+    /**
+     * @param int $assing_id
+     *
+     * @return bool
+     */
+    public function set_parent_id(int $parent_id)
+    {
+        $this->parent_id = $parent_id;
+        return $this->save('parent_id', $parent_id);
+    }
+
+    /**
+     * @return int
+     */
+    public function get_replies()
+    {
+        return $this->replies;
+    }
+
+    /**
+     * @param int $count
+     * @return bool
+     */
+    public function set_replies(int $count)
+    {
+        $this->replies = $count;
+        return $this->save('replies', $count);
+    }
 
     /**
      * @return string
@@ -153,7 +199,7 @@ class Comment_model extends CI_Emerald_Model
         {
             try {
                 $this->user = new User_model($this->get_user_id());
-            } catch (Exception $exception)
+            } catch (\Exception $exception)
             {
                 $this->user = new User_model();
             }
@@ -174,6 +220,11 @@ class Comment_model extends CI_Emerald_Model
         return $this;
     }
 
+    /**
+     * @param array $data
+     * @return Comment_model
+     * @throws \Exception
+     */
     public static function create(array $data)
     {
         App::get_ci()->s->from(self::CLASS_TABLE)->insert($data)->execute();
@@ -188,27 +239,38 @@ class Comment_model extends CI_Emerald_Model
     }
 
     /**
-     * @param int $assting_id
-     * @return self[]
-     * @throws Exception
+     * @param int|null $id
+     * @return Comment_model
      */
-    public static function get_all_by_assign_id(int $assting_id)
+    public static function get_by_id(int $id = null): Comment_model
     {
+        $res = !is_null($id) ? App::get_ci()->s->from(self::CLASS_TABLE)->where(['id' => $id])->one() : false;
 
-        $data = App::get_ci()->s->from(self::CLASS_TABLE)->where(['assign_id' => $assting_id])->orderBy('time_created','ASC')->many();
+        return new self($res ? $res['id'] : null);
+    }
+
+    /**
+     * @param int $assting_id
+     * @return array
+     * @throws \Exception
+     */
+    public static function get_all_by_post_id(int $post_id)
+    {
+        $res = App::get_ci()->s->from(self::CLASS_TABLE)->where(['post_id' => $post_id])->order(['parent_id', 'id'],'ASC')->many();
         $ret = [];
-        foreach ($data as $i)
-        {
-            $ret[] = (new self())->set($i);
+        foreach ($res as $row) {
+            $c = (new self())->set($row);
+            $ret[(int) $c->parent_id][] = $c;
         }
-        return $ret;
+
+        return (new Comment_library($ret, 0))->get();
     }
 
     /**
      * @param self|self[] $data
      * @param string $preparation
-     * @return stdClass|stdClass[]
-     * @throws Exception
+     * @return \stdClass|\stdClass[]
+     * @throws \Exception
      */
     public static function preparation($data, $preparation = 'default')
     {
@@ -217,28 +279,31 @@ class Comment_model extends CI_Emerald_Model
             case 'full_info':
                 return self::_preparation_full_info($data);
             default:
-                throw new Exception('undefined preparation type');
+                throw new \Exception('undefined preparation type');
         }
     }
 
 
     /**
      * @param self[] $data
-     * @return stdClass[]
+     * @return \stdClass[]
      */
     private static function _preparation_full_info($data)
     {
         $ret = [];
 
         foreach ($data as $d){
-            $o = new stdClass();
+            $o = new \stdClass();
 
             $o->id = $d->get_id();
+            $o->parent_id = $d->get_parent_id();
+            $o->replies = $d->get_replies();
+
             $o->text = $d->get_text();
 
             $o->user = User_model::preparation($d->get_user(),'main_page');
 
-            $o->likes = rand(0, 25);
+            $o->likes = Like_model::get_likes($d->get_id(), Assign_type_model::ASSIGN_TYPE_COMMENT);
 
             $o->time_created = $d->get_time_created();
             $o->time_updated = $d->get_time_updated();

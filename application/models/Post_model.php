@@ -1,9 +1,8 @@
 <?php
-
 namespace Model;
+
 use App;
 use CI_Emerald_Model;
-use Comment_model;
 use Exception;
 use stdClass;
 
@@ -150,7 +149,7 @@ class Post_model extends CI_Emerald_Model {
 
         if (empty($this->comments))
         {
-            $this->comments = Comment_model::get_all_by_assign_id($this->get_id());
+            $this->comments = Comment_model::get_all_by_post_id($this->get_id());
         }
         return $this->comments;
 
@@ -202,8 +201,32 @@ class Post_model extends CI_Emerald_Model {
         return (App::get_ci()->s->get_affected_rows() > 0);
     }
 
-    public function comment(){
+    /**
+     * @param int $user_id
+     * @param int $post_id
+     * @param string $message
+     * @param int|null $parent_id
+     * @throws Exception
+     */
+    public function comment(int $user_id, int $post_id, string $message, int $parent_id = null): Comment_model
+    {
+        $data = [
+            'post_id' => $post_id,
+            'user_id' => $user_id,
+            'text' => $message,
+            'parent_id' => $parent_id === 0 ? null : $parent_id
+        ];
 
+        $post = $data['post_id'] != $this->id ? new self($data['post_id']) : $this;
+        if (!$post->is_loaded()) throw new Exception('Wrong comment parent post id');
+
+        $parent_comment = Comment_model::get_by_id($data['parent_id']);
+        if (!is_null($data['parent_id']) && !$parent_comment->is_loaded()) throw new Exception('Wrong comment parent id');
+
+        $new_comment_id = Comment_model::create($data);
+        if ($parent_comment->get_id()) $parent_comment->set_replies($parent_comment->get_replies() + 1);
+
+        return $new_comment_id;
     }
 
     /**
@@ -283,14 +306,10 @@ class Post_model extends CI_Emerald_Model {
         $o->id = $data->get_id();
         $o->img = $data->get_img();
 
-
-//            var_dump($d->get_user()->object_beautify()); die();
-
         $o->user = User_model::preparation($data->get_user(), 'main_page');
+
         $o->coments = Comment_model::preparation($data->get_comments(), 'full_info');
-
-        $o->likes = rand(0, 25);
-
+        $o->likes = Like_model::get_likes($data->get_id(), Assign_type_model::ASSIGN_TYPE_POST);
 
         $o->time_created = $data->get_time_created();
         $o->time_updated = $data->get_time_updated();

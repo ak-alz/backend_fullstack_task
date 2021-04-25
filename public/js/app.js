@@ -55,16 +55,27 @@ var app = new Vue({
 				self.invalidPass = true
 			}
 			else{
-				self.invalidLogin = false
-				self.invalidPass = false
-				axios.post('/main_page/login', {
-					login: self.login,
-					password: self.pass
+				self.invalidLogin = false;
+				self.invalidPass = false;
+
+				let fd = new FormData();
+				fd.append('login', self.login);
+				fd.append('password', self.pass);
+
+				axios({
+					method: 'POST',
+					headers: { 'content-type': 'application/x-www-form-urlencoded' },
+					data: fd,
+					url: '/main_page/login'
 				})
 					.then(function (response) {
-						setTimeout(function () {
-							$('#loginModal').modal('hide');
-						}, 500);
+						if (response.data.status === 'error') {
+							console.log(response.data.error_message);
+						} else {
+							setTimeout(function () {
+								location.reload();
+							}, 500);
+						}
 					})
 			}
 		},

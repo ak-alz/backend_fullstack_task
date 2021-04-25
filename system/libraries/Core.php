@@ -39,4 +39,7 @@ class CI_Core {
 
 
     const CACHE_KEY_SETTINGS = 'settings';
+
+    const AUTH_USER_ALREADY_AUTHORIZED = 'need_logout_to_continue';
+    const AUTH_CREDENTIALS_ERROR = 'credentials_error';
 }
